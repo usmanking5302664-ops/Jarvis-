@@ -44,8 +44,10 @@ export class JarvisSpeechService {
 
       this.recognition.onerror = (event: any) => {
         console.warn('Speech recognition error:', event.error);
-        if (event.error !== 'no-speech') {
-          this.onErrorCallback?.(event.error);
+        if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+          this.onErrorCallback?.('Microphone permission required. Please allow microphone access in device/browser settings.');
+        } else if (event.error !== 'no-speech') {
+          this.onErrorCallback?.(`Speech error: ${event.error}`);
         }
       };
 
@@ -89,10 +91,18 @@ export class JarvisSpeechService {
         this.recognition.lang = this.currentLanguage;
         this.recognition.start();
       } catch (e: any) {
-        console.warn('Speech start warning:', e);
+        // Recognition might already be running, restart safely
+        try {
+          this.recognition.stop();
+          setTimeout(() => {
+            try { this.recognition.start(); } catch (err) {}
+          }, 100);
+        } catch (err) {
+          console.warn('Speech start warning:', e);
+        }
       }
     } else {
-      onError('Speech Recognition is not supported on this browser/environment.');
+      onError('Speech Recognition is not supported on this browser/environment. Please use Chrome or Samsung Internet.');
     }
   }
 
@@ -109,36 +119,44 @@ export class JarvisSpeechService {
   }
 
   public speak(text: string, onEnd?: () => void) {
-    if (!('speechSynthesis' in window)) return;
+    if (!('speechSynthesis' in window)) {
+      onEnd?.();
+      return;
+    }
 
-    window.speechSynthesis.cancel(); // Stop any pending speech
+    try {
+      window.speechSynthesis.cancel(); // Stop any pending speech
 
-    const utterance = new SpeechSynthesisUtterance(text);
-    // Detect if text contains Urdu characters
-    const hasUrdu = /[\u0600-\u06FF]/.test(text);
-    utterance.lang = hasUrdu ? 'ur-PK' : 'en-GB'; // English GB gives iconic Jarvis accent!
-    utterance.rate = 1.0;
-    utterance.pitch = 0.95; // slightly lower pitch for suave AI voice
+      const utterance = new SpeechSynthesisUtterance(text);
+      // Detect if text contains Urdu characters
+      const hasUrdu = /[\u0600-\u06FF]/.test(text);
+      utterance.lang = hasUrdu ? 'ur-PK' : 'en-GB'; // English GB gives iconic Jarvis accent!
+      utterance.rate = 1.0;
+      utterance.pitch = 0.95;
 
-    // Try finding a matching voice
-    const voices = window.speechSynthesis.getVoices();
-    if (voices.length > 0) {
-      const match = voices.find(v => 
-        hasUrdu 
-          ? (v.lang.startsWith('ur') || v.lang.startsWith('ar') || v.lang.startsWith('hi')) 
-          : (v.lang.includes('en-GB') || v.name.includes('David') || v.name.includes('Daniel') || v.name.includes('Google UK'))
-      );
-      if (match) {
-        utterance.voice = match;
+      // Find suitable voice
+      const voices = window.speechSynthesis.getVoices();
+      if (voices.length > 0) {
+        const match = voices.find(v => 
+          hasUrdu 
+            ? (v.lang.startsWith('ur') || v.lang.startsWith('ar') || v.lang.startsWith('hi')) 
+            : (v.lang.includes('en-GB') || v.name.includes('David') || v.name.includes('Daniel') || v.name.includes('Google UK'))
+        );
+        if (match) {
+          utterance.voice = match;
+        }
       }
-    }
 
-    if (onEnd) {
-      utterance.onend = onEnd;
-      utterance.onerror = onEnd;
-    }
+      if (onEnd) {
+        utterance.onend = onEnd;
+        utterance.onerror = onEnd;
+      }
 
-    window.speechSynthesis.speak(utterance);
+      window.speechSynthesis.speak(utterance);
+    } catch (e) {
+      console.warn('Speech synthesis error:', e);
+      onEnd?.();
+    }
   }
 
   public stopSpeaking() {

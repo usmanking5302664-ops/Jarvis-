@@ -113,20 +113,26 @@ export const KNOWN_PHONE_APPS: AppShortcut[] = [
 export function executeSendSms(phoneNumber: string, message: string): { success: boolean; message: string; uri: string } {
   jarvisAudio.playSuccessTone();
   const cleanPhone = phoneNumber ? phoneNumber.replace(/[^\d+]/g, '') : '';
-  const uri = `sms:${cleanPhone}?body=${encodeURIComponent(message || '')}`;
+  const uri = cleanPhone 
+    ? `sms:${cleanPhone}?body=${encodeURIComponent(message || '')}` 
+    : `sms:?body=${encodeURIComponent(message || '')}`;
 
   // Copy to clipboard for convenience
   if (navigator.clipboard) {
     navigator.clipboard.writeText(message).catch(() => {});
   }
 
-  // Attempt to open device SMS handler
-  const anchor = document.createElement('a');
-  anchor.href = uri;
-  anchor.target = '_blank';
-  document.body.appendChild(anchor);
-  anchor.click();
-  document.body.removeChild(anchor);
+  // Robust launch across all Android browser versions
+  try {
+    const link = document.createElement('a');
+    link.href = uri;
+    link.target = '_top';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  } catch (e) {
+    window.location.href = uri;
+  }
 
   return {
     success: true,
@@ -150,14 +156,28 @@ export function executeOpenApp(appNameQuery: string): { success: boolean; appNam
     // Try opening native scheme or web fallback
     const targetUrl = matched.scheme || matched.webUrl;
     if (targetUrl) {
-      window.open(targetUrl, '_blank');
-      return { success: true, appName: matched.name, action: `Opened ${matched.name} via ${targetUrl}` };
+      if (targetUrl.startsWith('http')) {
+        window.open(targetUrl, '_blank', 'noopener,noreferrer');
+      } else {
+        // Native scheme launch for mobile Android
+        try {
+          const a = document.createElement('a');
+          a.href = targetUrl;
+          a.target = '_top';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+        } catch (e) {
+          window.location.href = targetUrl;
+        }
+      }
+      return { success: true, appName: matched.name, action: `Opened ${matched.name}` };
     }
   }
 
   // Generic fallback: Search app on Google Play or search web
   const playSearch = `https://play.google.com/store/search?q=${encodeURIComponent(appNameQuery)}&c=apps`;
-  window.open(playSearch, '_blank');
+  window.open(playSearch, '_blank', 'noopener,noreferrer');
   return { success: true, appName: appNameQuery, action: `Searching for ${appNameQuery} on Google Play Store` };
 }
 
@@ -166,14 +186,17 @@ export function executeInstallFromPlayStore(appName: string): { success: boolean
   const playStoreUri = `market://search?q=${encodeURIComponent(appName)}`;
   const playStoreWeb = `https://play.google.com/store/search?q=${encodeURIComponent(appName)}&c=apps`;
 
-  // First try market scheme, fallback to web
-  const link = document.createElement('a');
-  link.href = playStoreWeb;
-  link.target = '_blank';
-  link.rel = 'noopener noreferrer';
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
+  // Try market intent first for Android device, fallback to Google Play web
+  try {
+    const link = document.createElement('a');
+    link.href = playStoreUri;
+    link.target = '_top';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  } catch (e) {
+    window.open(playStoreWeb, '_blank', 'noopener,noreferrer');
+  }
 
   return { success: true, url: playStoreWeb };
 }
@@ -181,7 +204,7 @@ export function executeInstallFromPlayStore(appName: string): { success: boolean
 export function executePlaySong(songTitle: string): { success: boolean; song: string; url: string } {
   jarvisAudio.playStartupChime();
   const ytSearchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(songTitle)}`;
-  window.open(ytSearchUrl, '_blank');
+  window.open(ytSearchUrl, '_blank', 'noopener,noreferrer');
   return { success: true, song: songTitle, url: ytSearchUrl };
 }
 

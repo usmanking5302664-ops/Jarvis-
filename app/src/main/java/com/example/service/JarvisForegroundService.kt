@@ -52,7 +52,24 @@ class JarvisForegroundService : Service() {
         }
 
         val notification = createNotification()
-        startForeground(NOTIFICATION_ID, notification)
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                // Compatible with Android 10, 11, 12, 13, 14, 15+
+                startForeground(
+                    NOTIFICATION_ID, 
+                    notification, 
+                    android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
+                )
+            } else {
+                startForeground(NOTIFICATION_ID, notification)
+            }
+        } catch (e: Exception) {
+            try {
+                startForeground(NOTIFICATION_ID, notification)
+            } catch (ignored: Exception) {
+                // Graceful fallback for restricted Android devices
+            }
+        }
         return START_STICKY
     }
 

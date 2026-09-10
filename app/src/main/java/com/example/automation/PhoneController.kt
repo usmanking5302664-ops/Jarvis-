@@ -155,13 +155,21 @@ object AndroidPhoneController {
 
         doc.finishPage(page)
 
-        val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-        val file = File(downloadsDir, "JARVIS_${System.currentTimeMillis()}.pdf")
+        // Compatible with Android 7 through Android 15 (Scoped Storage safe)
+        val file: File = try {
+            val appDownloads = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
+                ?: context.filesDir
+            File(appDownloads, "JARVIS_${System.currentTimeMillis()}.pdf")
+        } catch (e: Exception) {
+            File(context.cacheDir, "JARVIS_${System.currentTimeMillis()}.pdf")
+        }
+
         return try {
             val fos = FileOutputStream(file)
             doc.writeTo(fos)
             fos.close()
             doc.close()
+            Toast.makeText(context, "PDF saved: ${file.name}", Toast.LENGTH_LONG).show()
             file
         } catch (e: Exception) {
             doc.close()
