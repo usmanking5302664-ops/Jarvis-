@@ -1,0 +1,6 @@
+{
+  "name": "JARVIS AI Assistant",
+  "description": "An advanced AI-powered voice assistant and device controller with Gemini Pro intelligence, task automation, SMS, app launching, PDF generation, and HTML builder.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
